@@ -172,39 +172,53 @@
     });
   }
 
-  /* Inquiry form: opens a prefilled e-mail */
+  /* Load the external map only after an explicit request. */
+  document.querySelectorAll('[data-map-load]').forEach(function (button) {
+    button.addEventListener('click', function () {
+      var container = button.closest('.map');
+      var frame = container.querySelector('iframe[data-src]');
+      var message = container.querySelector('.map-notice');
+      if (frame.getAttribute('src')) return;
+      frame.setAttribute('src', frame.getAttribute('data-src'));
+      frame.hidden = false;
+      button.setAttribute('aria-expanded', 'true');
+      button.textContent = 'Žemėlapis įjungtas';
+      button.disabled = true;
+      message.textContent = 'Jei žemėlapis nepasirodė, atidarykite jį OpenStreetMap naudodami žemiau esančią nuorodą.';
+    });
+  });
+
+  /* Inquiry form: prepare a local mailto link, without sending */
+  function buildMailto(values) {
+    var clean = function (key) { return String(values[key] || '').trim(); };
+    var lines = ['Paslauga: ' + clean('service'), 'Objektas: ' + clean('object'), 'Plotas: ' + (clean('area') ? clean('area') + ' m²' : 'Nenurodytas'), 'Miestas: ' + clean('city'), 'Telefonas: ' + clean('phone'), '', 'Žinutė:', clean('message')];
+    return 'mailto:info@isibaltic.lt?subject=' + encodeURIComponent('Užklausa: ' + clean('service')) + '&body=' + encodeURIComponent(lines.join('\r\n'));
+  }
+  window.ISIBaltic = { buildMailto: buildMailto };
   var form = document.getElementById('inquiry');
   var note = document.getElementById('form-note');
   if (form) {
     form.addEventListener('submit', function (e) {
       e.preventDefault();
-      var f = form.elements;
-      var bad = [];
-      ['name', 'phone', 'message'].forEach(function (n) {
-        var ok = f[n].value.trim().length > 0;
-        f[n].setAttribute('aria-invalid', ok ? 'false' : 'true');
-        if (!ok) bad.push(f[n]);
+      var bad = [], values = {};
+      ['service', 'object', 'area', 'city', 'phone', 'message'].forEach(function (name) {
+        var field = form.elements[name]; values[name] = field.value.trim();
+        var valid = !field.required || values[name].length > 0;
+        if (name === 'area' && values[name] && !(Number(values[name]) > 0)) valid = false;
+        if (name === 'phone' && values[name] && (!/^[+()0-9 .-]{7,25}$/.test(values[name]) || values[name].replace(/\D/g, '').length < 7)) valid = false;
+        field.setAttribute('aria-invalid', valid ? 'false' : 'true');
+        if (!valid) bad.push(field);
       });
       if (bad.length) {
-        note.textContent = 'Prašome užpildyti vardą, telefoną ir žinutę.';
-        note.classList.add('err');
-        bad[0].focus();
-        return;
+        note.textContent = 'Pasirinkite paslaugą ir įrašykite objektą, miestą, telefono numerį bei žinutę. Telefono numeryje naudokite skaitmenis. Plotas turi būti didesnis už nulį.';
+        note.classList.add('err'); bad[0].focus(); return;
       }
       note.classList.remove('err');
-      var subject = 'Užklausa: ' + f.service.value;
-      var lines = ['Vardas ir pavardė: ' + f.name.value.trim(), 'Telefonas: ' + f.phone.value.trim()];
-      if (f.email.value.trim()) lines.push('El. paštas: ' + f.email.value.trim());
-      lines.push('Paslauga: ' + f.service.value, '', f.message.value.trim());
-      var href = 'mailto:info@isibaltic.lt?subject=' + encodeURIComponent(subject) +
-        '&body=' + encodeURIComponent(lines.join('\r\n'));
-      note.textContent = 'Atidarome jūsų el. pašto programą. Jei ji neatsidarė, rašykite info@isibaltic.lt.';
-      window.location.href = href;
+      note.textContent = 'Atidarome jūsų el. pašto programą. Peržiūrėkite laišką ir išsiųskite jį patys. Jei programa neatsidarė, rašykite info@isibaltic.lt.';
+      window.location.href = buildMailto(values);
     });
     form.addEventListener('input', function (e) {
-      if (e.target.getAttribute && e.target.getAttribute('aria-invalid') === 'true' && e.target.value.trim()) {
-        e.target.setAttribute('aria-invalid', 'false');
-      }
+      if (e.target.value && e.target.getAttribute('aria-invalid') === 'true') e.target.setAttribute('aria-invalid', 'false');
     });
   }
 })();
